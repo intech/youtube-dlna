@@ -32,7 +32,7 @@ class Devices extends SsdpClient {
     }
 
     sendDiscover() {
-        this.search('urn:schemas-upnp-org:device:MediaServer:1');
+        // this.search('urn:schemas-upnp-org:device:MediaServer:1');
         this.search('urn:schemas-upnp-org:device:MediaRenderer:1');
         if(this.updateInterval > 0)
             this.updateTimer = setTimeout(this.sendDiscover, this.updateInterval);
