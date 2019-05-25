@@ -8,34 +8,34 @@ const request = require('request');
 const ytdl = require('ytdl-core');
 const SsdpClient = require("node-ssdp").Client;
 const MediaRendererClient = require('upnp-mediarenderer-client');
-// constants
+// TODO: add cli options
 const source = process.argv[2];
 
 class Devices extends SsdpClient {
 
     constructor(label) {
         super();
-        this.updateInterval = 60;
+        this.updateInterval = 5000;
         this.updateTimer = null;
         this.LOCK = false;
-        this.on('response', (headers) => {
-            if(!this.LOCK && headers.SERVER.indexOf(label) !== -1) {
-                // console.log('Device:', headers.SERVER, headers.LOCATION);
+        this.on('response', (headers, code, address) => {
+            console.log('Device:', headers.SERVER, headers.LOCATION);
+            if(!this.LOCK && (!label || headers.SERVER.indexOf(label) !== -1)) {
+                console.log('Found:', headers.SERVER, headers.LOCATION);
                 this.LOCK = true;
                 clearTimeout(this.updateTimer);
-                this.updateInterval = 0;
+                this.stop();
                 this.emit('ready', headers.LOCATION, headers.SERVER);
             }
         });
-        console.log(`Discovering device "${label}"...`);
+        console.log(`Discovering device "${label||'all'}"...`);
         this.sendDiscover();
     }
 
     sendDiscover() {
         // this.search('urn:schemas-upnp-org:device:MediaServer:1');
         this.search('urn:schemas-upnp-org:device:MediaRenderer:1');
-        if(this.updateInterval > 0)
-            this.updateTimer = setTimeout(this.sendDiscover, this.updateInterval);
+        this.updateTimer = setTimeout(() => this.sendDiscover(), this.updateInterval);
     }
 }
 
@@ -107,10 +107,14 @@ class DLNAServer {
     }
 
     destroy() {
-        this.video.destroy();
-        this.video.removeAllListeners();
-        this.server.close();
-        this.server.removeAllListeners();
+        if(this.video) {
+            this.video.destroy();
+            this.video.removeAllListeners();
+        }
+        if(this.server) {
+            this.server.close();
+            this.server.removeAllListeners();
+        }
         this.server = null;
         this.video = null;
     }
@@ -192,7 +196,7 @@ class StreamVideo extends EventEmitter {
 }
 
 const dlna = new DLNAServer();
-const device = new Devices('Samsung');
+const device = new Devices(process.argv[3]);
 device.on('ready', async (location, label) => {
     console.log('Loading video', source, '...');
     const {mime, meta} = await dlna.play(source);
@@ -254,6 +258,7 @@ device.on('ready', async (location, label) => {
         } else {
             dlna.destroy();
             console.log('End');
+            process.exit();
         }
     });
 
